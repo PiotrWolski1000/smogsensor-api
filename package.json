@@ -1,0 +1,30 @@
+{
+  "name": "smogsensor-api",
+  "version": "1.0.0",
+  "description": "\"smog sensor api\"",
+  "main": "index.js",
+  "scripts": {
+    "start": "nodemon index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PiotrWolski1000/smogsensor-api.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/PiotrWolski1000/smogsensor-api/issues"
+  },
+  "homepage": "https://github.com/PiotrWolski1000/smogsensor-api#readme",
+  "dependencies": {
+    "axios": "^0.18.0",
+    "body-parser": "^1.18.3",
+    "cors": "^2.8.5",
+    "express": "^4.16.4",
+    "pg": "^7.8.2"
+  },
+  "devDependencies": {
+    "nodemon": "^1.18.10"
+  }
+}
