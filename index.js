@@ -6,6 +6,20 @@ const bodyParser = require('body-parser')
 const pg = require('pg');
 const Pool = pg.Pool;
 
+const schedule = require('node-schedule');
+
+let startTime = new Date(Date.now() + 5000);
+let endTime = new Date(startTime.getTime() + 5000);
+
+// var j = schedule.scheduleJob({ start: startTime, end: endTime, rule: '1 * * * *' }, function(){
+    var j = schedule.scheduleJob('1 * * * *', function(){
+    //let the magic begin
+    console.log('start time: ', startTime);
+    console.log('it works!');
+});
+
+
+
 var router = express.Router();
 
 router.all('*',function(req,res,next) {
@@ -43,27 +57,45 @@ pool.query('SELECT NOW()', function (err, res) {
     // pool.end()
 })
 
+// id SERIAL PRIMARY KEY,
 const createTableStations = `
     CREATE TABLE IF NOT EXISTS stations(
-        id SERIAL PRIMARY KEY,
-        id_station integer,
+        id_station integer PRIMARY KEY UNIQUE,
         stationName VARCHAR(255) NOT NULL,
         gegrLat VARCHAR(255) NOT NULL,
         gegrLon VARCHAR(255) NOT NULL,
         cityName VARCHAR(255) NOT NULL,
+        provinceName VARCHAR(255),
         addressStreet VARCHAR(255)
     );        
-`;
-    
-const createTableStationsData = `
-    CREATE TABLE IF NOT EXISTS station_data(
-        id SERIAL PRIMARY KEY,
-        station_id INT references stations(id_station),
-        pm10 INT,
-        no2 INT,
-        date  date
-    );
-` 
+`
+
+const createTableSensors = `
+    CREATE TABLE IF NOT EXISTS sensors( 
+        id int NOT NULL,
+        id_station bigint NOT NULL,
+        parameter_name varchar(255) NOT NULL,
+        formula_name varchar(255) NOT NULL,
+        CONSTRAINT sensors_pk PRIMARY KEY ("id")
+    )
+`
+
+const CreateTableAirQuality = `
+        CREATE TABLE IF NOT EXISTS airquality(
+            id_station int NOT NULL,
+            date DATE NOT NULL,
+            value varchar NOT NULL
+        )
+`
+
+const CreateTableData = `
+    CREATE TABLE IF NOT EXISTS data(
+        id int NOT NULL,
+        date date NOT NULL,
+        value float8 NOT NULL,
+        CONSTRAINT data_pk PRIMARY KEY ("id")
+    )
+`
 
 
 pool.query(createTableStations, function (err, res) {
@@ -74,13 +106,30 @@ pool.query(createTableStations, function (err, res) {
     }
 });
 
-pool.query(createTableStationsData, function (err, res) {
+pool.query(createTableSensors, function (err, res) {
     if (err) {
         console.error(err);
     } else {
         // console.log(res);
     }
 });
+
+pool.query(CreateTableAirQuality, function (err, res) {
+    if (err) {
+        console.error(err);
+    } else {
+        // console.log(res);
+    }
+});
+
+pool.query(CreateTableData, function (err, res) {
+    if (err) {
+        console.error(err);
+    } else {
+        // console.log(res);
+    }
+});
+
 
 function getAllStations(callback) {
     pool.query('SELECT * FROM stations;', function (err, res) {
@@ -93,7 +142,7 @@ function getAllStations(callback) {
 }
 function insertStation(settings, callback) {
     console.log('inserting these params into stations table: ', settings)
-    pool.query('INSERT INTO stations(id_station,stationName,gegrLat,gegrLon,cityName,addressStreet) VALUES($1, $2, $3, $4, $5, $6) RETURNING *;', settings, function (err, res) {
+    pool.query('INSERT INTO stations(id_station,stationName,gegrLat,gegrLon,cityName,provinceName,addressStreet) VALUES($1, $2, $3, $4, $5, $6, $7) RETURNING *;', settings, function (err, res) {
         if (err) {
             callback(err, null)
         } else {
@@ -101,6 +150,17 @@ function insertStation(settings, callback) {
         }
     });
 }
+function insertAirQuality(settings, callback) {
+    console.log('inserting these params into air-quality table: ', settings)
+    pool.query('INSERT INTO airquality(id_station,date,value) VALUES($1, $2, $3) RETURNING *;', settings, function (err, res) {
+        if (err) {
+            callback(err, null)
+        } else {
+            callback(null, res.rows[0])
+        }
+    });
+}
+
 
 function deleteStation(id, callback) {
     pool.query('DELETE FROM stations WHERE id = $1', [id], function (err, res) {
@@ -113,7 +173,7 @@ function deleteStation(id, callback) {
 }
 
 function isNotNull(item) {
-    if(item !== null && item.city !== null && item.city.name !== null){
+    if(item !== null && item.city !== null && item.city.name !== null && item.city.commune.provinceName !== 'undefined'){
         // console.log('not null');
         return item
     }
@@ -121,35 +181,72 @@ function isNotNull(item) {
 } 
 
 app.get('/api/', function (req, res) {
+    console.log('entered api, db will updates soon')
+
     axios.get('http://api.gios.gov.pl/pjp-api/rest/station/findAll')
     .then(function (response) {
     // handle success  
         let myResult = response.data.filter(isNotNull)
 
+        // console.log('result[0]: ', myResult[0])
+        // console.log('my id is: ', myResult[0].id_station)
         let settings
         myResult.forEach(item => {
             //prepare chunk of data(array)
             settings = [
-                item.id_station,
+                item.id,
                 item.stationName,
                 item.gegrLat,
                 item.gegrLon,
                 item.city.name,
+                item.city.commune.provinceName,
                 item.addressStreet,
             ]
 
-            //making n inserts 
+            //making n inserts of 
             insertStation(settings, function(err, resData) {   
                 if(err){
                     console.log('error: ', err)
-                    // res.send("Internal Server Error").sendStatus(500)
-
                 } else {
                     console.log("res's data:", res)
                     // res.sendStatus(200).send(resData)
+                    // res.send(resData)
                 }
             })
-        })
+
+            //should I here make another get response for each station?
+            axios.get(`http://api.gios.gov.pl/pjp-api/rest/aqindex/getIndex/${item.id}`)
+            .then((response2)=>{
+            //success get request
+                // console.log('air quality index data for item id: ', item.id)
+                // console.log('res', response2.data)
+
+                let settings = [
+                    item.id,
+                    response2.data.stCalcDate,
+                    response2.data.stIndexLevel.indexLevelName
+                ]
+
+        
+
+                //filling air index quality table
+                insertAirQuality(settings, function(err, resData) {   
+                    if(err){
+                        console.log('error: ', err)
+                    } else {
+                        console.log("res's data:", resData)
+                        // res.sendStatus(200).send(resData)
+                        // res.send(resData)
+                    }
+                })
+            })
+            .catch(err=>{
+                console.log('error: ', err)
+            })
+
+
+        })//finish station for each loop
+
     })
     .catch(function (error) {
         // handle error
@@ -185,11 +282,9 @@ app.delete('/api/cities/:id', function (req, res) {
 
 app.post('/api/stations/', (req, res) => {
 
-    const payload = JSON.stringify(req.body)
-    
-    console.log('my payload: ', payload)
-    
-    console.log('req headers: ', req.headers)
+    // const payload = JSON.stringify(req.body)
+    // console.log('my payload: ', payload)
+    // console.log('req headers: ', req.headers)
     
     const settings = [
         req.body.id_station,
@@ -197,6 +292,7 @@ app.post('/api/stations/', (req, res) => {
         req.body.gegrLat,
         req.body.gegrLon,
         req.body.cityName,
+        req.body.provinceName,
         req.body.addressStreet
     ]        
     
@@ -205,14 +301,12 @@ app.post('/api/stations/', (req, res) => {
     insertStation(settings, function(err, resData) {   
         if(err){
             console.log('error: ', err)
-            res.send("Internal Server Error").sendStatus(500).end()
         } else {
             console.log("res's data: ", resData)
-            res.sendStatus(200).end()
-            //.send(resData)
+            res.sendStatus(200).send(resData)
         }
     })
-
+    res.end()
 })
             
             
