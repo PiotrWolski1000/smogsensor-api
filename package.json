@@ -18,9 +18,10 @@
   },
   "homepage": "https://github.com/PiotrWolski1000/smogsensor-api#readme",
   "dependencies": {
-    "axios": "^0.18.0",
+    "axios": "^0.19.0",
     "body-parser": "^1.18.3",
     "cors": "^2.8.5",
+    "dotenv": "^8.0.0",
     "express": "^4.16.4",
     "node-schedule": "^1.3.2",
     "pg": "^7.8.2"
