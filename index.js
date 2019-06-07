@@ -46,12 +46,11 @@ app.get('/api/', function (req, res) {
     .then(function (response) {
     // handle success  
         let myResult = response.data.filter(mStations.isNotNull)
-//here    // console.log('updates, here the data: ', myResult)
+        // console.log('updates, here the data: ', myResult)
         // console.log('result[0]: ', myResult[0])
         // console.log('my id is: ', myResult[0].id_station)
         let settings
         myResult.forEach(item => {
-            //prepare chunk of data(array)
             settings = [
                 item.id,
                 item.stationName,
@@ -61,75 +60,61 @@ app.get('/api/', function (req, res) {
                 item.addressStreet,
                 item.city.name,
             ]
-            // making n inserts of stations
+            //making n inserts of stations
             mStations.insertStation(settings, function(err, resData) {   
                 if(err){
-                    // console.log('error: ', err)
+                    //console.log('error: ', err)
                 } else {
-//here               // console.log("res's data:", res)
-                    // res.sendStatus(200).send(resData)
-                    // res.send(resData)
+                    //console.log("res's data:", res)
+                    //res.sendStatus(200).send(resData)
                 }
             })
             //airquality api call
-            // axios.get(`http://api.gios.gov.pl/pjp-api/rest/aqindex/getIndex/${item.id}`)
-            // .then((response2)=>{
-            //     //success get request
-            //     let settings2 = [
-            //         item.id,
-            //         response2.data.stCalcDate,
-            //         response2.data.stIndexLevel.indexLevelName
-            //     ]
-            //     //filling air index quality table
-            //     mAirQuality.insertAirQuality(settings2, function(err, resData) {   
-            //         if(err){
-            //             console.log('error: ', err)
-            //         } else {
-            //             // console.log("res's data:", resData)
-            //             res.sendStatus(200).send(resData)
-            //             // res.send(resData)
-            //         }
-            //     })
-            // }).catch(err=>{
-            //     console.log('error: ', err)
-            // })//end of inserting airquality
+            axios.get(`http://api.gios.gov.pl/pjp-api/rest/aqindex/getIndex/${item.id}`)
+            .then((response2)=>{
+                //success get request
+                let settings2 = [
+                    item.id,
+                    response2.data.stCalcDate,
+                    response2.data.stIndexLevel.indexLevelName
+                ]
+                //filling air index quality table
+                mAirQuality.insertAirQuality(settings2, function(err, resData) {   
+                    if(err){
+                        console.log('error: ', err)
+                    } else {
+                        // console.log("res's data:", resData)
+                        // res.sendStatus(200).send(resData)
+                    }
+                })
+            }).catch(err=>{
+                console.log('error: ', err)
+            })//end of inserting airquality
+
             //sending request to gios api (sensors)
             axios.get(`http://api.gios.gov.pl/pjp-api/rest/station/sensors/${item.id}`)
             .then((response3)=>{
                 //success get request
-                // console.log('air quality index data for item id: ', item.id)
-                console.log('res3.data: ', response3.data)
-
-                // console.log('response3: ', response3)
                 response3.data.forEach((sensor_item) => {
-                    // let settings = [
-                    //     sensor_item.id,
-                    //     item.id,
-                    //     response3.data.paramName,
-                    //     response3.data.paramCode
-                    // ]
-                    // console.log(response3.data.param)
-                    let settings = []
-                    settings = [
+                    let settings = [
                         sensor_item.id,
-                        item.id,
-                        response3.data.paramName,
-                        response3.data.paramCode
+                        item.id,//station id
+                        sensor_item.param.paramName,
+                        sensor_item.param.paramCode
                     ]
-                    // console.log('dane sensor: ', settings)
                     //filling sensors table
                     mSensors.insertSensor(settings, function(err, resData){
                         if(err){
                             console.log('error: ', err)
                         } else {
-                            console.log(resData)
+                            // console.log(resData)
                             // res.sendStatus(200).send(resData)
                         }
                     })      
                 })
             }).catch(err=>{
                 console.log('error: ', err)
-            })//end of inserting to database(before airquality was here)
+            })//end of inserting to sensors table
 
         })//finish for each station loop
         //res send to stations?
@@ -138,9 +123,7 @@ app.get('/api/', function (req, res) {
         // handle error
         // console.log('error: ', error)
     })
-
     //should I here make another get response for each station?
-    
 })
 
 app.get('/api/stations/', (req, res)=>{
