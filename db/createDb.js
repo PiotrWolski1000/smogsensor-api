@@ -28,7 +28,7 @@ const mSensors = `
 const mAirQuality = `
     CREATE TABLE IF NOT EXISTS airquality(
         id_station bigint,
-        date DATE,
+        date varchar(255),
         value varchar(255)
     ) WITH (
         OIDS=FALSE
@@ -38,7 +38,7 @@ const mAirQuality = `
 const mData = `
     CREATE TABLE IF NOT EXISTS data(
         id bigint ,
-        date DATE ,
+        date varchar(255) ,
         value float8 ,
         CONSTRAINT data_pk PRIMARY KEY ("id")
         ) WITH (
