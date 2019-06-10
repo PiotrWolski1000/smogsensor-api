@@ -5,13 +5,18 @@ const cors = require('cors')
 const bodyParser = require('body-parser')
 const db = require('./db/pgpool')
 var pool = db.getPool()//connection with db
+var schedule = require('node-schedule');
+
+var j = schedule.scheduleJob('1 * * * *', function(){//run every hour when minute = 1
+    console.log('The answer to life, the universe, and everything!');
+});
 
 //my functions to manipulate our database
 let mStations = require('./db_functions/stations/') 
 let mSensors = require('./db_functions/sensors/') 
 let mData = require('./db_functions/data/') 
 let mAirQuality = require('./db_functions/airquality/') 
-
+let destroyDb = require('./db_functions/all_tables/index')
 var router = express.Router()//server routes
 
 //setting up the  server
@@ -73,15 +78,17 @@ app.get('/api/', function (req, res) {
             axios.get(`http://api.gios.gov.pl/pjp-api/rest/aqindex/getIndex/${item.id}`)
             .then((response2)=>{
                 //success get request
+
+                let name = response2.data.stIndexLevel?response2.data.stIndexLevel.indexLevelName:null
                 let settings2 = [
                     item.id,
                     response2.data.stCalcDate,
-                    response2.data.stIndexLevel.indexLevelName
+                    name
                 ]
-                //filling air index quality table
+                //filling air index quality indexLevelNametable
                 mAirQuality.insertAirQuality(settings2, function(err, resData) {   
                     if(err){
-                        console.log('error: ', err)
+                        // console.log('error: ', err)
                     } else {
                         // console.log("res's data:", resData)
                         // res.sendStatus(200).send(resData)
@@ -105,15 +112,40 @@ app.get('/api/', function (req, res) {
                     //filling sensors table
                     mSensors.insertSensor(settings, function(err, resData){
                         if(err){
-                            console.log('error: ', err)
+                            // console.log('error: ', err)
                         } else {
                             // console.log(resData)
                             // res.sendStatus(200).send(resData)
+                            //api call for data from specific sensor
+                            axios.get(`http://api.gios.gov.pl/pjp-api/rest/data/getData/${sensor_item.id}`)
+                            .then((response4)=>{
+
+                                // console.log(response4.data.values[0])
+                                let settings = [
+                                    sensor_item.id,
+                                    response4.data.values[response4.data.values.length - 1].date,
+                                    response4.data.values[response4.data.values.length - 1].value
+                                ]
+
+                                // console.log(typeof(response4.data.values[0].date))
+                                // console.log(settings)
+
+                                mData.insertData(settings, function(err, resData4){
+                                    if(err){
+                                        console.log('err4: ', err)
+                                    } else {
+                                        console.log('res4: ', resData4);
+                                    }
+                                })
+
+                            }).catch((err)=>{
+                                console.log('err4: ', err)
+                            })
                         }
                     })      
                 })
             }).catch(err=>{
-                console.log('error: ', err)
+                // console.log('error: ', err)
             })//end of inserting to sensors table
 
         })//finish for each station loop
@@ -124,6 +156,7 @@ app.get('/api/', function (req, res) {
         // console.log('error: ', error)
     })
     //should I here make another get response for each station?
+    // res.sendStatus(200)//.send(res)
 })
 
 app.get('/api/stations/', (req, res)=>{
@@ -176,12 +209,46 @@ app.delete('/api/cities/:id', function (req, res) {
     })
 })
 
-app.get('/api/getSensor/:id', function(req, res) {
-    console.log('getSensor invoked!');
+app.get('/api/getSensor/:id', function(req, res) {//new, works, unblock console.logs
+    // console.log('getSensor invoked!');
     const id = req.params.id;
-    console.log('param id: ', id);
+    // console.log('param id: ', id);
     axios.get(`http://api.gios.gov.pl/pjp-api/rest/station/sensors/${id}`).then((res)=>{
-        console.log('res sensor get with param: ', res.data);
+        // console.log('res sensor get with param: ', res.data);
     }).catch((err)=>{console.log('err: '. err)})
 })
 
+
+//DANGEROUS !!!
+app.get('/api/destroyAll', function(req, res) {//destroys all tables in db
+    destroyDb.deleteTableStations((err, res)=>{
+        if(err){
+            console.log('err: ', err)
+        } else {
+            // console.log('res: ', res)
+
+            destroyDb.deleteTableSensors(function(err, res){
+                if(err){
+                    console.log('err: ', err)
+                } else {
+                    // console.log('res: ', res)
+                    destroyDb.deleteTableAirQuality(function(err, res){
+                        if(err){
+                            console.log('err: ', err)
+                        } else {
+                            // console.log('res: ', res)
+                            destroyDb.deleteTableData(function(err, res){
+                                if(err){
+                                    console.log('err: ', err)
+                                } else {
+                                    // console.log('res: ', res)
+                                }
+                            })
+                        }
+                    })
+                }
+            })
+        }
+    })
+    // res.sendStatus(200)
+})
