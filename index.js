@@ -1,3 +1,4 @@
+require('dotenv').config()
 const axios = require('axios')
 const express = require('express')
 const app = express()
@@ -6,6 +7,8 @@ const bodyParser = require('body-parser')
 const db = require('./db/pgpool')
 var pool = db.getPool()//connection with db
 var schedule = require('node-schedule');
+
+
 
 var j = schedule.scheduleJob('1 * * * *', function(){//run every hour when minute = 1
     console.log('The answer to life, the universe, and everything!');
@@ -20,7 +23,7 @@ let destroyDb = require('./db_functions/all_tables/index')
 var router = express.Router()//server routes
 
 //setting up the  server
-let port = 3000;
+let port = process.env.S_PORT?process.env.S_PORT:3000
 
 router.all('*',function(req,res,next) {
     res.header("Access-Control-Allow-Origin", "*")
